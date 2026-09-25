@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = "llama-nemotron-embed-vl-1b-v2:frees"
+MODEL = "google/gemma-4-31b-it:free"
 
 TRANSLATIONS = {
     "en": {
@@ -110,14 +110,15 @@ def generate_recipe(ingredients, lang):
                 {"role": "system", "content": "You are an expert chef."},
                 {"role": "user", "content": prompt_content},
             ],
-            "reasoning": {"enabled": True},
-            "provider": {
-                "only": ["google-ai-studio"],
-                "allow_fallbacks": False,
-            },
         }),
     )
-    response.raise_for_status()
+    if not response.ok:
+        try:
+            error_detail = response.json().get("error", {}).get("message") or response.text
+        except ValueError:
+            error_detail = response.text
+        raise RuntimeError(f"OpenRouter returned HTTP {response.status_code}: {error_detail}")
+
     message = response.json()["choices"][0]["message"]
     return message["content"].strip()
 
