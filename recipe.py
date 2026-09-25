@@ -4,7 +4,11 @@ import requests
 import streamlit as st
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = "google/gemma-4-31b-it:free"
+MODELS = [
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+]
 
 TRANSLATIONS = {
     "en": {
@@ -105,7 +109,7 @@ def generate_recipe(ingredients, lang):
             "Content-Type": "application/json",
         },
         data=json.dumps({
-            "model": MODEL,
+            "models": MODELS,
             "messages": [
                 {"role": "system", "content": "You are an expert chef."},
                 {"role": "user", "content": prompt_content},
@@ -114,7 +118,9 @@ def generate_recipe(ingredients, lang):
     )
     if not response.ok:
         try:
-            error_detail = response.json().get("error", {}).get("message") or response.text
+            error_detail = response.json().get("error") or response.text
+            if isinstance(error_detail, dict):
+                error_detail = json.dumps(error_detail, ensure_ascii=False)
         except ValueError:
             error_detail = response.text
         raise RuntimeError(f"OpenRouter returned HTTP {response.status_code}: {error_detail}")
