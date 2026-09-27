@@ -1,14 +1,11 @@
 import os
-import json
 import requests
 import streamlit as st
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODELS = [
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-]
+OPENROUTER_API_KEY = st.secrets.get(
+    "OPENROUTER_API_KEY", os.getenv("OPENROUTER_API_KEY", "")
+)
+MODEL = "liquid/lfm-2.5-2.6b:free"
 
 TRANSLATIONS = {
     "en": {
@@ -108,25 +105,31 @@ def generate_recipe(ingredients, lang):
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         },
-        data=json.dumps({
-            "models": MODELS,
+        json={
+            "model": MODEL,
             "messages": [
                 {"role": "system", "content": "You are an expert chef."},
                 {"role": "user", "content": prompt_content},
             ],
-        }),
+        },
+        timeout=60,
     )
     if not response.ok:
         try:
-            error_detail = response.json().get("error") or response.text
-            if isinstance(error_detail, dict):
-                error_detail = json.dumps(error_detail, ensure_ascii=False)
+            details = response.json()
         except ValueError:
-            error_detail = response.text
-        raise RuntimeError(f"OpenRouter returned HTTP {response.status_code}: {error_detail}")
+            details = response.text
+        raise RuntimeError(f"OpenRouter error ({response.status_code}): {details}")
 
-    message = response.json()["choices"][0]["message"]
-    return message["content"].strip()
+    payload = response.json()
+    choices = payload.get("choices", [])
+    if not choices:
+        raise RuntimeError(f"OpenRouter returned no completion: {payload}")
+
+    content = choices[0].get("message", {}).get("content")
+    if not content:
+        raise RuntimeError(f"OpenRouter returned an empty recipe: {payload}")
+    return content.strip()
 
 
 if st.button(t["generate_button"], type="primary", disabled=not ingredients):
